@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import it.usna.shellyscan.model.device.g2.AbstractG2Device;
 import it.usna.shellyscan.model.device.modules.InputModeManager;
@@ -16,11 +17,17 @@ import tools.jackson.databind.JsonNode;
  * - "light:N" components (dimmers); all the device inputs of type "button" or "switch"
  *   not paired with a switch are considered dimmer inputs.
  * Covers are not managed (different in_mode semantics).
+ * Channels in a device specific mode (e.g. "cycle", "activate") are never changed.
  */
 public class InputModeManagerG2 implements InputModeManager {
+	/** basic relay modes: any other in_mode (e.g. "cycle", "activate") is device specific and is kept */
+	private static final Set<String> SWITCH_BASIC_MODES = Set.of("momentary", "follow", "flip", "detached");
+	/** basic dimmer modes: any other in_mode (e.g. "activate") is device specific and is kept */
+	private static final Set<String> LIGHT_BASIC_MODES = Set.of("dim", "dual_dim", "follow", "flip", "detached");
+
 	private final AbstractG2Device parent;
 	private Mode mode = Mode.NOT_APPLICABLE;
-	private final ArrayList<Integer> switchIds = new ArrayList<>();
+	private final Map<Integer, String> switches = new HashMap<>(); // id -> current in_mode
 	private final Map<Integer, String> lights = new HashMap<>(); // id -> current in_mode
 	private final Map<Integer, String> inputTypes = new HashMap<>(); // id -> "button" | "switch"
 	private final ArrayList<Integer> lightInputIds = new ArrayList<>();
@@ -50,7 +57,7 @@ public class InputModeManagerG2 implements InputModeManager {
 			if(name.startsWith("switch:")) {
 				final int id = parseId(name, 7);
 				if(id >= 0 && inputTypes.containsKey(id)) {
-					switchIds.add(id);
+					switches.put(id, inMode.asString(""));
 					merge(toSwitchMode(inputTypes.get(id), inMode.asString("")));
 				}
 			} else if(name.startsWith("light:")) {
@@ -63,7 +70,7 @@ public class InputModeManagerG2 implements InputModeManager {
 		}
 		if(lights.size() > 0) {
 			for(Integer inId: inputTypes.keySet()) {
-				if(switchIds.contains(inId) == false) {
+				if(switches.containsKey(inId) == false) {
 					lightInputIds.add(inId);
 				}
 			}
@@ -115,6 +122,9 @@ public class InputModeManagerG2 implements InputModeManager {
 		return mode;
 	}
 
+	/**
+	 * @return null if ok, "notApplicable" if nothing to change (no relay/dimmer or only device specific modes), error description otherwise
+	 */
 	@Override
 	public String setMode(Mode target) {
 		if(mode == Mode.NOT_APPLICABLE) {
@@ -127,6 +137,7 @@ public class InputModeManagerG2 implements InputModeManager {
 			default -> throw new IllegalArgumentException(target.name());
 		};
 		String msg = null;
+		boolean applied = false;
 
 		// relays
 		final String switchInMode = switch(target) {
@@ -135,7 +146,12 @@ public class InputModeManagerG2 implements InputModeManager {
 			case SWITCH_FOLLOW -> "follow";
 			default -> "detached";
 		};
-		for(int id: switchIds) {
+		for(Map.Entry<Integer, String> sw: switches.entrySet()) {
+			if(SWITCH_BASIC_MODES.contains(sw.getValue()) == false) {
+				continue; // device specific mode (e.g. "cycle"): keep it
+			}
+			applied = true;
+			final int id = sw.getKey();
 			String localMsg = setInputType(id, inputType);
 			if(localMsg == null) { // do not change in_mode if input type change failed
 				localMsg = parent.postCommand("Switch.SetConfig", "{\"id\":" + id + ",\"config\":{\"in_mode\":\"" + switchInMode + "\"}}");
@@ -145,8 +161,9 @@ public class InputModeManagerG2 implements InputModeManager {
 			}
 		}
 
-		// dimmers
-		if(lights.size() > 0) {
+		// dimmers - inputs could be shared by channels: if any channel is in a device specific mode the dimmer is not changed
+		if(lights.size() > 0 && lights.values().stream().allMatch(LIGHT_BASIC_MODES::contains)) {
+			applied = true;
 			boolean inputsOk = true;
 			for(int id: lightInputIds) {
 				String localMsg = setInputType(id, inputType);
@@ -172,7 +189,7 @@ public class InputModeManagerG2 implements InputModeManager {
 				}
 			}
 		}
-		return msg;
+		return applied ? msg : "notApplicable";
 	}
 
 	/** change the input type only if different from the current one */

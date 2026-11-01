@@ -2,6 +2,7 @@ package it.usna.shellyscan.model.device.g1.modules;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Set;
 
 import it.usna.shellyscan.model.device.g1.AbstractG1Device;
 import it.usna.shellyscan.model.device.modules.InputModeManager;
@@ -9,9 +10,14 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * "btn_type" for relays (momentary / edge / toggle / detached)
- * and dimmers (one_button / dual_button / edge / toggle / detached); roller mode is not managed
+ * and dimmers (one_button / dual_button / edge / toggle / detached); roller mode is not managed.
+ * Channels in a device specific mode (e.g. "action", "cycle") are never changed.
  */
 public class InputModeManagerG1 implements InputModeManager {
+	/** basic modes: any other btn_type (e.g. "action", "cycle", "momentary_on_release") is device specific and is kept */
+	private static final Set<String> RELAY_BASIC_MODES = Set.of("momentary", "edge", "toggle", "detached");
+	private static final Set<String> LIGHT_BASIC_MODES = Set.of("one_button", "dual_button", "edge", "toggle", "detached");
+	
 	private final AbstractG1Device parent;
 	private Mode mode = Mode.NOT_APPLICABLE;
 	private final ArrayList<Channel> channels = new ArrayList<>();
@@ -90,7 +96,12 @@ public class InputModeManagerG1 implements InputModeManager {
 			default -> throw new IllegalArgumentException(target.name());
 		};
 		String msg = null;
+		boolean applied = false;
 		for(Channel c: channels) {
+			if((c.isLight() ? LIGHT_BASIC_MODES : RELAY_BASIC_MODES).contains(c.btnType()) == false) {
+				continue; // device specific mode: keep it
+			}
+			applied = true;
 			final String btnType;
 			if(c.isLight()) {
 				btnType = switch(target) {
@@ -108,6 +119,6 @@ public class InputModeManagerG1 implements InputModeManager {
 				msg = localMsg;
 			}
 		}
-		return msg;
+		return applied ? msg : "notApplicable";
 	}
 }

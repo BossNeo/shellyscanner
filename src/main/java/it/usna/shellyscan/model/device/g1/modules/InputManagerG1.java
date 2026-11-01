@@ -3,15 +3,15 @@ package it.usna.shellyscan.model.device.g1.modules;
 import java.io.IOException;
 
 import it.usna.shellyscan.model.device.g1.AbstractG1Device;
-import it.usna.shellyscan.model.device.modules.InpuManager;
+import it.usna.shellyscan.model.device.modules.InputManager;
 import tools.jackson.databind.JsonNode;
 
 /**
  * InputResetManager model implementation for G1
  */
-public class InputManagerG1 implements InpuManager {
+public class InputManagerG1 implements InputManager {
 	private final AbstractG1Device parent;
-	private Status mode;
+	private ResetMode resetMode;
 	
 	public InputManagerG1(AbstractG1Device d) throws IOException {
 		this(d, d.getJSON("/settings"));
@@ -26,24 +26,24 @@ public class InputManagerG1 implements InpuManager {
 		this.parent = d;
 		JsonNode reset = config.path("factory_reset_from_switch");
 		if(reset.isMissingNode()) {
-			mode = Status.NOT_APPLICABLE;
+			resetMode = ResetMode.NOT_APPLICABLE;
 		} else if(reset.booleanValue(false)) {
-			mode = Status.TRUE;
+			resetMode = ResetMode.TRUE;
 		} else {
-			mode = Status.FALSE;
+			resetMode = ResetMode.FALSE;
 		}
 	}
 	
 	@Override
-	public Status getVal() {
-		return mode;
+	public ResetMode getResetMode() {
+		return resetMode;
 	}
 
 	@Override
-	public Boolean getValAsBoolean() {
-		if(mode == Status.TRUE) {
+	public Boolean getResetModeAsBoolean() {
+		if(resetMode == ResetMode.TRUE) {
 			return true;
-		} else if(mode == Status.FALSE) {
+		} else if(resetMode == ResetMode.FALSE) {
 			return false;
 		} else {
 			return null;
@@ -52,7 +52,7 @@ public class InputManagerG1 implements InpuManager {
 	
 	@Override
 	public String enableReset(boolean enable) {
-		if(mode == Status.NOT_APPLICABLE) {
+		if(resetMode == ResetMode.NOT_APPLICABLE) {
 			return "notApplicable";
 		} else {
 			return parent.sendCommand("/settings?factory_reset_from_switch=" + enable);

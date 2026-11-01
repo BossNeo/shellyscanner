@@ -56,7 +56,7 @@ import it.usna.shellyscan.model.device.g2.modules.WIFIManagerG2;
 import it.usna.shellyscan.model.device.g2.modules.Webhooks;
 import it.usna.shellyscan.model.device.modules.WallDisplayInterface;
 import it.usna.shellyscan.model.device.modules.FirmwareManager;
-import it.usna.shellyscan.model.device.modules.InpuManager;
+import it.usna.shellyscan.model.device.modules.InputManager;
 import it.usna.shellyscan.model.device.modules.LoginManager;
 import it.usna.shellyscan.model.device.modules.WIFIManager;
 import it.usna.shellyscan.model.device.modules.WIFIManager.Network;
@@ -247,7 +247,7 @@ public abstract class AbstractG2Device extends ShellyAbstractDevice {
 	}
 	
 	@Override
-	public InpuManager getInputResetManager() throws IOException {
+	public InputManager getInputManager() throws IOException {
 		return new InputManagerG2(this);
 	}
 

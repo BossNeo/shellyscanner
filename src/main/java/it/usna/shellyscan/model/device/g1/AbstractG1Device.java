@@ -41,7 +41,7 @@ import it.usna.shellyscan.model.device.g1.modules.MQTTManagerG1;
 import it.usna.shellyscan.model.device.g1.modules.TimeAndLocationManagerG1;
 import it.usna.shellyscan.model.device.g1.modules.WIFIManagerG1;
 import it.usna.shellyscan.model.device.modules.FirmwareManager;
-import it.usna.shellyscan.model.device.modules.InpuManager;
+import it.usna.shellyscan.model.device.modules.InputManager;
 import it.usna.shellyscan.model.device.modules.LoginManager;
 import it.usna.shellyscan.model.device.modules.TimeAndLocationManager;
 import it.usna.shellyscan.model.device.modules.WIFIManager;
@@ -226,7 +226,7 @@ public abstract class AbstractG1Device extends ShellyAbstractDevice {
 	}
 	
 	@Override
-	public InpuManager getInputResetManager() throws IOException {
+	public InputManager getInputManager() throws IOException {
 		return new InputManagerG1(this);
 	}
 	

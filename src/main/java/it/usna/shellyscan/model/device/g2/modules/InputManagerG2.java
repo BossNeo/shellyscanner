@@ -5,15 +5,15 @@ import java.util.ArrayList;
 import java.util.Map.Entry;
 
 import it.usna.shellyscan.model.device.g2.AbstractG2Device;
-import it.usna.shellyscan.model.device.modules.InpuManager;
+import it.usna.shellyscan.model.device.modules.InputManager;
 import tools.jackson.databind.JsonNode;
 
 /**
  * InputResetManager model implementation for G2+
  */
-public class InputManagerG2 implements InpuManager {
+public class InputManagerG2 implements InputManager {
 	private final AbstractG2Device parent;
-	private Status mode = Status.NOT_APPLICABLE;
+	private ResetMode resetMode = ResetMode.NOT_APPLICABLE;
 	private ArrayList<Integer> ids = new ArrayList<>();
 	
 	public InputManagerG2(AbstractG2Device d) throws IOException {
@@ -27,41 +27,41 @@ public class InputManagerG2 implements InpuManager {
 	 */
 	public InputManagerG2(AbstractG2Device d, JsonNode config) {
 		this.parent = d;
-		Status currentMode;
+		ResetMode currentMode;
 		for(Entry<String, JsonNode> node: config.properties()) {
 			String name;
 			int id;
 			if((name = node.getKey()).startsWith("input:") && (id = Integer.parseInt(name.split(":")[1])) < 100) {
 				JsonNode reset = node.getValue().path("factory_reset");
 				if(reset.isMissingNode()) {
-					currentMode = Status.NOT_APPLICABLE;
+					currentMode = ResetMode.NOT_APPLICABLE;
 				} else if(reset.booleanValue(false)) {
-					currentMode = Status.TRUE;
+					currentMode = ResetMode.TRUE;
 					ids.add(id);
 				} else {
-					currentMode = Status.FALSE;
+					currentMode = ResetMode.FALSE;
 					ids.add(id);
 				}
-				if(mode == Status.TRUE && currentMode == Status.FALSE || mode == Status.FALSE && currentMode == Status.TRUE) {
-					mode = Status.MIX;
+				if(resetMode == ResetMode.TRUE && currentMode == ResetMode.FALSE || resetMode == ResetMode.FALSE && currentMode == ResetMode.TRUE) {
+					resetMode = ResetMode.MIX;
 					break;
-				} else if(currentMode != Status.NOT_APPLICABLE) {
-					mode = currentMode;
+				} else if(currentMode != ResetMode.NOT_APPLICABLE) {
+					resetMode = currentMode;
 				}
 			}
 		}
 	}
 
 	@Override
-	public Status getVal() {
-		return mode;
+	public ResetMode getResetMode() {
+		return resetMode;
 	}
 	
 	@Override
-	public Boolean getValAsBoolean() {
-		if(mode == Status.TRUE) {
+	public Boolean getResetModeAsBoolean() {
+		if(resetMode == ResetMode.TRUE) {
 			return true;
-		} else if(mode == Status.FALSE) {
+		} else if(resetMode == ResetMode.FALSE) {
 			return false;
 		} else {
 			return null;
@@ -70,7 +70,7 @@ public class InputManagerG2 implements InpuManager {
 	
 	@Override
 	public String enableReset(boolean enable) {
-		if(mode == Status.NOT_APPLICABLE) {
+		if(resetMode == ResetMode.NOT_APPLICABLE) {
 			return "notApplicable";
 		} else {
 			String msg = null;

@@ -26,7 +26,7 @@ public class InputModeManagerG2 implements InputModeManager {
 	private static final Set<String> LIGHT_BASIC_MODES = Set.of("dim", "dual_dim", "follow", "flip", "detached");
 
 	private final AbstractG2Device parent;
-	private Mode mode = Mode.NOT_APPLICABLE;
+	private InputMode typeMode = InputMode.NOT_APPLICABLE;
 	private final Map<Integer, String> switches = new HashMap<>(); // id -> current in_mode
 	private final Map<Integer, String> lights = new HashMap<>(); // id -> current in_mode
 	private final Map<Integer, String> inputTypes = new HashMap<>(); // id -> "button" | "switch"
@@ -85,49 +85,49 @@ public class InputModeManagerG2 implements InputModeManager {
 		}
 	}
 
-	private void merge(Mode current) {
-		if(mode == Mode.NOT_APPLICABLE) {
-			mode = current;
-		} else if(mode != current) {
-			mode = Mode.MIX;
+	private void merge(InputMode current) {
+		if(typeMode == InputMode.NOT_APPLICABLE) {
+			typeMode = current;
+		} else if(typeMode != current) {
+			typeMode = InputMode.MIX;
 		}
 	}
 
-	private static Mode toSwitchMode(String inputType, String inMode) {
+	private static InputMode toSwitchMode(String inputType, String inMode) {
 		if(inMode.equals("detached")) {
-			return Mode.DETACHED;
+			return InputMode.DETACHED;
 		} else if(inputType.equals("button") && inMode.equals("momentary")) {
-			return Mode.BUTTON;
+			return InputMode.BUTTON;
 		} else if(inputType.equals("switch") && inMode.equals("flip")) {
-			return Mode.SWITCH_FLIP;
+			return InputMode.SWITCH_FLIP;
 		} else if(inputType.equals("switch") && inMode.equals("follow")) {
-			return Mode.SWITCH_FOLLOW;
+			return InputMode.SWITCH_FOLLOW;
 		} else {
-			return Mode.OTHER;
+			return InputMode.OTHER;
 		}
 	}
 
-	private static Mode toLightMode(String inMode) {
+	private static InputMode toLightMode(String inMode) {
 		return switch(inMode) {
-			case "dim", "dual_dim" -> Mode.BUTTON; // one or two buttons: not managed here
-			case "flip" -> Mode.SWITCH_FLIP;
-			case "follow" -> Mode.SWITCH_FOLLOW;
-			case "detached" -> Mode.DETACHED;
-			default -> Mode.OTHER; // "activate", ...
+			case "dim", "dual_dim" -> InputMode.BUTTON; // one or two buttons: not managed here
+			case "flip" -> InputMode.SWITCH_FLIP;
+			case "follow" -> InputMode.SWITCH_FOLLOW;
+			case "detached" -> InputMode.DETACHED;
+			default -> InputMode.OTHER; // "activate", ...
 		};
 	}
 
 	@Override
-	public Mode getVal() {
-		return mode;
+	public InputMode getInputMode() {
+		return typeMode;
 	}
 
 	/**
 	 * @return null if ok, "notApplicable" if nothing to change (no relay/dimmer or only device specific modes), error description otherwise
 	 */
 	@Override
-	public String setMode(Mode target) {
-		if(mode == Mode.NOT_APPLICABLE) {
+	public String setInputMode(InputMode target) {
+		if(typeMode == InputMode.NOT_APPLICABLE) {
 			return "notApplicable";
 		}
 		final String inputType = switch(target) {

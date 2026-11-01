@@ -19,7 +19,7 @@ public class InputModeManagerG1 implements InputModeManager {
 	private static final Set<String> LIGHT_BASIC_MODES = Set.of("one_button", "dual_button", "edge", "toggle", "detached");
 	
 	private final AbstractG1Device parent;
-	private Mode mode = Mode.NOT_APPLICABLE;
+	private InputMode typeMode = InputMode.NOT_APPLICABLE;
 	private final ArrayList<Channel> channels = new ArrayList<>();
 
 	private record Channel(String endpoint, boolean isLight, String btnType) {}
@@ -50,42 +50,42 @@ public class InputModeManagerG1 implements InputModeManager {
 		}
 	}
 
-	private void merge(Mode current) {
-		if(mode == Mode.NOT_APPLICABLE) {
-			mode = current;
-		} else if(mode != current) {
-			mode = Mode.MIX;
+	private void merge(InputMode current) {
+		if(typeMode == InputMode.NOT_APPLICABLE) {
+			typeMode = current;
+		} else if(typeMode != current) {
+			typeMode = InputMode.MIX;
 		}
 	}
 
-	private static Mode toRelayMode(String btnType) {
+	private static InputMode toRelayMode(String btnType) {
 		return switch(btnType) {
-			case "momentary" -> Mode.BUTTON;
-			case "edge" -> Mode.SWITCH_FLIP;
-			case "toggle" -> Mode.SWITCH_FOLLOW;
-			case "detached" -> Mode.DETACHED;
-			default -> Mode.OTHER; // "action", "cycle", "momentary_on_release", ...
+			case "momentary" -> InputMode.BUTTON;
+			case "edge" -> InputMode.SWITCH_FLIP;
+			case "toggle" -> InputMode.SWITCH_FOLLOW;
+			case "detached" -> InputMode.DETACHED;
+			default -> InputMode.OTHER; // "action", "cycle", "momentary_on_release", ...
 		};
 	}
 
-	private static Mode toLightMode(String btnType) {
+	private static InputMode toLightMode(String btnType) {
 		return switch(btnType) {
-			case "one_button", "dual_button" -> Mode.BUTTON; // one or two buttons: not managed here
-			case "edge" -> Mode.SWITCH_FLIP;
-			case "toggle" -> Mode.SWITCH_FOLLOW;
-			case "detached" -> Mode.DETACHED;
-			default -> Mode.OTHER; // "action", ...
+			case "one_button", "dual_button" -> InputMode.BUTTON; // one or two buttons: not managed here
+			case "edge" -> InputMode.SWITCH_FLIP;
+			case "toggle" -> InputMode.SWITCH_FOLLOW;
+			case "detached" -> InputMode.DETACHED;
+			default -> InputMode.OTHER; // "action", ...
 		};
 	}
 
 	@Override
-	public Mode getVal() {
-		return mode;
+	public InputMode getInputMode() {
+		return typeMode;
 	}
 
 	@Override
-	public String setMode(Mode target) {
-		if(mode == Mode.NOT_APPLICABLE || channels.isEmpty()) {
+	public String setInputMode(InputMode target) {
+		if(typeMode == InputMode.NOT_APPLICABLE || channels.isEmpty()) {
 			return "notApplicable";
 		}
 		final String relayType = switch(target) {

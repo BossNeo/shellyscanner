@@ -4,7 +4,7 @@ package it.usna.shellyscan.model.device.modules;
  * Manage the input mode of relay and dimmer outputs (button / switch / detached)
  */
 public interface InputModeManager {
-	enum Mode {
+	enum InputMode {
 		BUTTON,			// relay G2+: input "button" + in_mode "momentary"; G1: btn_type "momentary"
 						// dimmer G2+: input "button" + in_mode "dim" or "dual_dim" (kept if already set);
 						//        G1: btn_type "one_button" or "dual_button" (kept if already set)
@@ -16,10 +16,10 @@ public interface InputModeManager {
 		NOT_APPLICABLE
 	};
 
-	Mode getVal();
+	InputMode getInputMode();
 
 	/**
 	 * @return null if ok or error description in case of error
 	 */
-	String setMode(Mode mode);
+	String setInputMode(InputMode mode);
 }

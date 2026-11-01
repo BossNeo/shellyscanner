@@ -6,6 +6,7 @@ import java.awt.BorderLayout;
 import java.awt.Container;
 import java.awt.Cursor;
 import java.awt.Desktop;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
@@ -99,6 +100,10 @@ public class MainView extends MainWindow implements UsnaEventListener<Devices.Ev
 	private AppProperties temporaryProp = new AppProperties(); // normal view properties stored here on detailed view
 	private JLabel statusLabel = new JLabel();
 	private boolean statusLineReserved = false;
+	private JButton selectAllBtn;
+	private JButton selectOnlineBtn;
+	private JButton selectOfflineBtn;
+	private JButton selectGhostsBtn;
 	private boolean useArchive;
 	private JTextField textFieldFilter = new JTextField();
 	private Devices model;
@@ -225,7 +230,11 @@ public class MainView extends MainWindow implements UsnaEventListener<Devices.Ev
 	// also asks for credential if needed (login action)
 	private UsnaAction reloadAction = new UsnaSelectedAction(this, devicesTable, "action_name_reload", null, "/images/Loop16.png", null, i -> {
 		final ShellyAbstractDevice d = model.get(i);
-		model.create(d.getAddressAndPort().getAddress(), d.getAddressAndPort().getPort(), d instanceof AbstractBTHomeDevice blu ? blu.getParent().getHostname() : d.getHostname(), false);
+		if(d instanceof AbstractBTHomeDevice blu) {
+			model.createBlu(blu.getParent());
+		} else {
+			model.create(d.getAddressAndPort().getAddress(), d.getAddressAndPort().getPort(), d.getHostname(), false);
+		}
 		devicesTable.setRowHeight(devicesTable.convertRowIndexToView(i), DevicesTable.ONLINE_BULLET.getIconHeight()); // reset row height
 	});
 
@@ -302,13 +311,84 @@ public class MainView extends MainWindow implements UsnaEventListener<Devices.Ev
 		contentPane.setBackground(Main.STATUS_LINE_COLOR);
 		
 		// Status bar
-		JPanel statusPanel = new JPanel();
-		statusPanel.setLayout(new BorderLayout(6, 0));
+		JPanel statusPanel = new JPanel(new BorderLayout(6, 0));
+		statusPanel.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 2));
+		statusLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 3, 0));
 		statusPanel.add(statusLabel, BorderLayout.CENTER);
-		
-		JPanel statusLeftPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 2, 0));
-		statusLeftPanel.setOpaque(false);
 
+		// Status bar - selection panel
+		JPanel selectionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 1));
+		selectionPanel.setOpaque(false);
+		
+		Action selectAll = new UsnaAction(null, "labelSelectAll", "/images/list_unordered.png", e -> devicesTable.selectAll());
+		selectAllBtn = new JButton(selectAll);
+		selectAllBtn.setBorder(BorderFactory.createEmptyBorder(2, 18, 3, 18));
+		selectAllBtn.setBackground(Main.STATUS_LINE_COLOR);
+		selectionPanel.add(selectAllBtn);
+		
+		Action selectOnLine = new SelectionAction(devicesTable, "labelSelectOnLine", "/images/list_online.png", i -> model.get(i).getStatus() == Status.ON_LINE);
+		selectOnlineBtn = new JButton(selectOnLine);
+		selectOnlineBtn.setBorder(BorderFactory.createEmptyBorder(2, 18, 3, 18));
+		selectOnlineBtn.setBackground(Main.STATUS_LINE_COLOR);
+		selectionPanel.add(selectOnlineBtn);
+		
+		Action selectOffLine = new SelectionAction(devicesTable, "labelSelectOffLine", "/images/list_offline.png", i -> model.get(i).getStatus() == Status.OFF_LINE);
+		selectOfflineBtn = new JButton(selectOffLine) ;
+		selectOfflineBtn.setBorder(BorderFactory.createEmptyBorder(2, 18, 3, 18));
+		selectOfflineBtn.setBackground(Main.STATUS_LINE_COLOR);
+		selectionPanel.add(selectOfflineBtn);
+		
+		Action selectGhosts = new SelectionAction(devicesTable, "labelSelectGhosts", "/images/list_ghost.png", i -> model.get(i).getStatus() == Status.GHOST);
+		selectGhostsBtn = new JButton(selectGhosts) ;
+		selectGhostsBtn.setBorder(BorderFactory.createEmptyBorder(2, 18, 3, 18));
+		selectGhostsBtn.setBackground(Main.STATUS_LINE_COLOR);
+		selectionPanel.add(selectGhostsBtn);
+		
+		// selection popup
+		JButton btnSelectCombo = new JButton();
+		btnSelectCombo.setAction(new UsnaDropdownAction(btnSelectCombo, "labelSelectDevices", "/images/expand-more.png", new Object[] {
+				new SelectionAction(devicesTable, "labelSelectOnLineReboot", null, null, i -> model.get(i).getStatus() == Status.ON_LINE && model.get(i).rebootRequired()),
+				new SelectionAction(devicesTable, "labelSelectG1", null, null, i -> model.get(i) instanceof AbstractG1Device),
+				new SelectionAction(devicesTable, "labelSelectG2", null, null, i -> model.get(i) instanceof AbstractG2Device), // G2+
+				new SelectionAction(devicesTable, "labelSelectWIFI", null, null, i -> model.get(i) instanceof AbstractG1Device || model.get(i) instanceof AbstractG2Device),
+				new SelectionAction(devicesTable, "labelSelectBLU", null, null, i -> model.get(i) instanceof AbstractBTHomeDevice),
+		}));
+		btnSelectCombo.setContentAreaFilled(false);
+		btnSelectCombo.setBorder(BorderFactory.createEmptyBorder(3, 5, 1, 5));
+		selectionPanel.add(btnSelectCombo);
+		
+		statusPanel.add(selectionPanel, BorderLayout.WEST);
+
+		JPanel statusFilterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+		statusFilterPanel.setOpaque(false);
+		JLabel filterLabel = new JLabel(LABELS.getString("lblFilter"));
+		filterLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 3, 0));
+		statusFilterPanel.add(filterLabel);
+				
+		JComboBox<String> comboFilterCol = new JComboBox<>();
+		comboFilterCol.addItem(LABELS.getString("lblFilterFull"));
+		comboFilterCol.addItem(LABELS.getString("col_type"));
+		comboFilterCol.addItem(LABELS.getString("col_device"));
+		comboFilterCol.addItem(LABELS.getString("col_device_name"));
+		comboFilterCol.addItem(LABELS.getString("col_keyword"));
+		comboFilterCol.addActionListener( event -> setColFilter(comboFilterCol) );
+		comboFilterCol.setSelectedIndex(appProp.getIntProperty(ScannerProperties.PROP_DEFAULT_FILTER_IDX));
+		Dimension cp = comboFilterCol.getPreferredSize();
+		comboFilterCol.setPreferredSize(new Dimension(cp.width, cp.height - 2));
+		statusFilterPanel.add(comboFilterCol);		
+		
+		textFieldFilter.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+		textFieldFilter.setColumns(16);
+		textFieldFilter.getDocument().addDocumentListener( (TextDocumentListener)event -> setColFilter(comboFilterCol) );
+		statusFilterPanel.add(textFieldFilter);
+		
+		JButton eraseFilterButton = new JButton(eraseFilterAction);
+		eraseFilterButton.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 6));
+		eraseFilterButton.setContentAreaFilled(false);
+		eraseFilterButton.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_E, SHORTCUT_KEY), "find_erase");
+		eraseFilterButton.getActionMap().put("find_erase", eraseFilterAction);
+		statusFilterPanel.add(eraseFilterButton);
+		
 		JButton btnshowDeferrables = new JButton("0", DEFERRED_ICON);
 		btnshowDeferrables.addActionListener(new UsnaAction(this, "labelShowDeferrables", e -> {
 			if(dialogDeferrables == null) { // single dialog
@@ -322,60 +402,9 @@ public class MainView extends MainWindow implements UsnaEventListener<Devices.Ev
 			}
 			btnshowDeferrables.setIcon(DEFERRED_ICON); // reset button icon (not success/fail)
 		}));
-		btnshowDeferrables.setBorder(BorderFactory.createEmptyBorder(4, 9, 3, 7));
-		statusLeftPanel.add(btnshowDeferrables);
-		statusPanel.add(statusLeftPanel, BorderLayout.WEST);
-		
-		JPanel statusFilterPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 2, 0));
-		statusFilterPanel.setOpaque(false);
-		statusFilterPanel.add(new JLabel(LABELS.getString("lblFilter")));
-		textFieldFilter.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
-		textFieldFilter.setColumns(16);
-		
-		JComboBox<String> comboFilterCol = new JComboBox<>();
-		comboFilterCol.addItem(LABELS.getString("lblFilterFull"));
-		comboFilterCol.addItem(LABELS.getString("col_type"));
-		comboFilterCol.addItem(LABELS.getString("col_device"));
-		comboFilterCol.addItem(LABELS.getString("col_device_name"));
-		comboFilterCol.addItem(LABELS.getString("col_keyword"));
-		comboFilterCol.addActionListener( event -> setColFilter(comboFilterCol) );
-		comboFilterCol.setSelectedIndex(appProp.getIntProperty(ScannerProperties.PROP_DEFAULT_FILTER_IDX));
-		statusFilterPanel.add(comboFilterCol);
-		statusFilterPanel.add(textFieldFilter);
-		
-		textFieldFilter.getDocument().addDocumentListener( (TextDocumentListener)event -> setColFilter(comboFilterCol) );
-		
-		JButton eraseFilterButton = new JButton(eraseFilterAction);
-		eraseFilterButton.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 2));
-		eraseFilterButton.setContentAreaFilled(false);
-		eraseFilterButton.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_E, SHORTCUT_KEY), "find_erase");
-		eraseFilterButton.getActionMap().put("find_erase", eraseFilterAction);
-		statusFilterPanel.add(eraseFilterButton);
-
-		Action selectAll = new UsnaAction(null, "labelSelectAll", null, "/images/list_unordered.png", null, e -> devicesTable.selectAll());
-		Action selectOnLine = new SelectionAction(devicesTable, "labelSelectOnLine", null, "/images/list_online.png", i -> model.get(i).getStatus() == Status.ON_LINE);
-		
-		JButton btnSelectAll = new JButton(selectAll);
-		btnSelectAll.setBorder(BorderFactory.createEmptyBorder(2, 7, 2, 8));
-		statusFilterPanel.add(btnSelectAll);
-		
-		JButton btnSelectOnline = new JButton(selectOnLine);
-		btnSelectOnline.setBorder(BorderFactory.createEmptyBorder(2, 7, 2, 8));
-		statusFilterPanel.add(btnSelectOnline);
-		
-		// Selection popup
-		JButton btnSelectCombo = new JButton();
-		btnSelectCombo.setAction(new UsnaDropdownAction(btnSelectCombo, "labelSelectDevices", "/images/expand-more.png", new Object[] {
-				new SelectionAction(devicesTable, "labelSelectOnLineReboot", null, null, i -> model.get(i).getStatus() == Status.ON_LINE && model.get(i).rebootRequired()),
-				new SelectionAction(devicesTable, "labelSelectG1", null, null, i -> model.get(i) instanceof AbstractG1Device),
-				new SelectionAction(devicesTable, "labelSelectG2", null, null, i -> model.get(i) instanceof AbstractG2Device /*&& model.get(i) instanceof AbstractG3Device == false*/), // G2+
-				new SelectionAction(devicesTable, "labelSelectWIFI", null, null, i -> model.get(i) instanceof AbstractG1Device || model.get(i) instanceof AbstractG2Device),
-				new SelectionAction(devicesTable, "labelSelectBLU", null, null, i -> model.get(i) instanceof AbstractBTHomeDevice),
-				new SelectionAction(devicesTable, "labelSelectGhosts", null, null, i -> model.get(i) instanceof GhostDevice)
-		}));
-		btnSelectCombo.setContentAreaFilled(false);
-		btnSelectCombo.setBorder(BorderFactory.createEmptyBorder(1, 0, 1, 3));
-		statusFilterPanel.add(btnSelectCombo);
+		btnshowDeferrables.setBorder(BorderFactory.createEmptyBorder(2, 9, 3, 7));
+		btnshowDeferrables.setToolTipText(LABELS.getString("labelShowDeferrablesTootips"));
+		statusFilterPanel.add(btnshowDeferrables);
 		
 		statusPanel.add(statusFilterPanel, BorderLayout.EAST);
 		statusPanel.setBackground(Main.STATUS_LINE_COLOR);
@@ -390,7 +419,7 @@ public class MainView extends MainWindow implements UsnaEventListener<Devices.Ev
 		contentPane.add(scrollPane, BorderLayout.CENTER);
 		devicesTable.sortByColumn(DevicesTable.COL_IP_IDX, SortOrder.ASCENDING);
 		devicesTable.loadColPos(appProp);
-		devicesTable.setUptimeRenderMode(appProp.getProperty(ScannerProperties.PROP_UPTIME_MODE/*, ScannerProperties.PROP_UPTIME_MODE_DEFAULT*/));
+		devicesTable.setUptimeRenderMode(appProp.getProperty(ScannerProperties.PROP_UPTIME_MODE));
 		
 		scrollPane.setViewportView(devicesTable);
 		scrollPane.getViewport().setBackground(Main.BG_COLOR);
@@ -714,14 +743,30 @@ public class MainView extends MainWindow implements UsnaEventListener<Devices.Ev
 	public synchronized void setStatus(String status) {
 		statusLabel.setText(status);
 	}
-	
+
 	private synchronized void displayStatus() {
-		if(statusLineReserved == false) {
-			if(textFieldFilter.getText().isEmpty()) {
-				statusLabel.setText(String.format(LABELS.getString("scanning_end"), model.size(), devicesTable.getSelectedRowCount()));
-			} else {
-				statusLabel.setText(String.format(LABELS.getString("filter_status"), model.size(), devicesTable.getRowCount(), devicesTable.getSelectedRowCount()));
+		int onLine = 0;
+		int offLine = 0;
+		int ghosts = 0;
+		for(int idx = 0; idx < model.size(); idx++) {
+			switch(model.get(idx).getStatus()) {
+			case ON_LINE -> onLine++;
+			case OFF_LINE -> offLine++;
+			case GHOST -> ghosts++;
+			default -> {}
 			}
 		}
+		if(textFieldFilter.getText().isEmpty()) {
+			selectAllBtn.setText(String.format(LABELS.getString("num_tot_devices"), model.size()));
+		} else {
+			selectAllBtn.setText(String.format(LABELS.getString("num_tot_sh_devices"), devicesTable.getRowCount(), model.size()));
+		}
+		selectOnlineBtn.setText(String.format(LABELS.getString("num_online_devices"), onLine));
+		selectOfflineBtn.setText(String.format(LABELS.getString("num_offline_devices"), offLine));
+		selectGhostsBtn.setText(String.format(LABELS.getString("num_ghost_devices"), ghosts));
+
+		if(statusLineReserved == false) {
+			statusLabel.setText(String.format(LABELS.getString("selected_status"), devicesTable.getSelectedRowCount()));
+		}
 	}
-} //557 - 614 - 620 - 669 - 705 - 727 - 699 - 760 - 782 - 811 - 805 - 646 - 699 - 706 - 688 - 698 - 707 - 720
+} //557 - 614 - 620 - 669 - 705 - 727 - 699 - 760 - 782 - 811 - 805 - 646 - 699 - 706 - 688 - 698 - 707 - 720 - 772

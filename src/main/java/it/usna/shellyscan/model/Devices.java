@@ -44,7 +44,6 @@ import it.usna.shellyscan.model.device.blu.BluTRV;
 import it.usna.shellyscan.model.device.g2.AbstractG2Device;
 import it.usna.shellyscan.model.device.g2.AbstractProDevice;
 import it.usna.shellyscan.model.device.g3.AbstractG3Device;
-import it.usna.shellyscan.model.device.g4.AbstractG4Device;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -388,43 +387,38 @@ public class Devices extends it.usna.util.UsnaObservable<Devices.EventType, Inte
 					});
 				}
 				// BTHome (BLU)
-				if(d instanceof AbstractG2Device g2 && d instanceof BatteryDeviceInterface == false) {
-					if(d instanceof AbstractProDevice || d instanceof AbstractG3Device || d instanceof AbstractG4Device) {
-						TimeUnit.MILLISECONDS.sleep(Devices.MULTI_QUERY_DELAY);
-						HashSet<String> specialBLUSet = new HashSet<>();
-						g2.getJSONIterator("/rpc/Shelly.GetComponents?dynamic_only=true", "components").forEachRemaining(compInfo -> {
-							String key = compInfo.path("key").asString("");
-							if(key.startsWith(BluTRV.DEVICE_KEY_PREFIX) ) {
-								try { TimeUnit.MILLISECONDS.sleep(Devices.MULTI_QUERY_DELAY); } catch (InterruptedException e) {}
-								AbstractBTHomeDevice newBlu = newBluDevice(g2, compInfo, key);
-								specialBLUSet.add(newBlu.getMacAddress());
-							} else if(key.startsWith(BTHomeDevice.DEVICE_KEY_PREFIX)) {
-								String newMacAddr = compInfo.path("config").path("addr").asString(null);
-								if(specialBLUSet.contains(newMacAddr) == false) {
-									try { TimeUnit.MILLISECONDS.sleep(Devices.MULTI_QUERY_DELAY); } catch (InterruptedException e) {}
-									newBluDevice(g2, compInfo, key);
-								}
-							}
-						});
-					}
-					// todo
-					// creare una lista di "bleDevices" BLEDevice accumulando i gw i aggiungere i gw ai BTHomeDevice in lista;
-					// alla creazione di un BTHomeDevice verificare se esiste già in bleDevices stesso mac, sommare i gw e rimuovere
-
-//					TimeUnit.MILLISECONDS.sleep(Devices.MULTI_QUERY_DELAY);
-//					g2.getJSONIterator("/rpc/BLE.CloudRelay.ListInfos", "devices").forEachRemaining(bleDev -> {
-//						LOG.debug(d.getAddressAndPort() + " - " + bleDev);
-//						Entry<String, JsonNode> nodeEntry = bleDev.properties().iterator().next();
-//						String mac = nodeEntry.getKey();
-//						new BLEDevice(g2, mac , "0");
-//						// todo new BLEDevice
-//					});
+				if(d instanceof BatteryDeviceInterface == false && (d instanceof AbstractProDevice || d instanceof AbstractG3Device)) { // G4 extends G3
+					TimeUnit.MILLISECONDS.sleep(Devices.MULTI_QUERY_DELAY);
+					createBlu((AbstractG2Device)d);
 				}
 			}
 		} catch(DeviceUnauthorizedException e) {
 			LOG.debug("401 - {}:{}; host: {}", address, port, hostName, e);
 		} catch(Exception e) {
 			LOG.error("Unexpected-add: {}:{}; host: {}", address, port, hostName, e);
+		}
+	}
+	
+	public void createBlu(AbstractG2Device g2) {
+		try {
+			HashSet<String> specialBLUSet = new HashSet<>(); // list of "special" (have specific API) BLU devices (TRV, ---)
+			g2.getJSONIterator("/rpc/Shelly.GetComponents?dynamic_only=true", "components").forEachRemaining(compInfo -> {
+				String key = compInfo.path("key").asString("");
+				// here we assume that specia BLU (TRV, ...) always comes first
+				if(key.startsWith(BluTRV.DEVICE_KEY_PREFIX)) {
+					try { TimeUnit.MILLISECONDS.sleep(Devices.MULTI_QUERY_DELAY); } catch (InterruptedException e) {}
+					AbstractBTHomeDevice newBlu = newBluDevice(g2, compInfo, key);
+					specialBLUSet.add(newBlu.getMacAddress());
+				} else if(key.startsWith(BTHomeDevice.DEVICE_KEY_PREFIX)) {
+					String newMacAddr = compInfo.path("config").path("addr").asString(null);
+					if(specialBLUSet.contains(newMacAddr) == false) { // not already loaded as "specia" -> load as BTHome
+						try { TimeUnit.MILLISECONDS.sleep(Devices.MULTI_QUERY_DELAY); } catch (InterruptedException e) {}
+						newBluDevice(g2, compInfo, key);
+					}
+				}
+			});
+		} catch(Exception e) {
+			LOG.error("Unexpected-blu-add: {}; host: {}", g2.getAddressAndPort(), g2.getHostname(), e);
 		}
 	}
 	
@@ -435,14 +429,17 @@ public class Devices extends it.usna.util.UsnaObservable<Devices.EventType, Inte
 			if(ind >= 0) {
 				ShellyAbstractDevice existingDevice = devices.get(ind);
 				if(d instanceof ShellyUnmanagedDeviceInterface == false || existingDevice instanceof ShellyUnmanagedDeviceInterface || existingDevice instanceof GhostDevice) { // Do not replace device if was recognized and now is not
-//					if(d.getTypeID() != existingDevice.getTypeID() || d instanceof BatteryDeviceInterface == false) { // who cares: full refresh
-						if(refreshProcess.get(ind) != null) {
-							refreshProcess.get(ind).cancel(true);
-						}
-						devices.set(ind, d);
-						fireEvent(EventType.SUBSTITUTE, ind);
-						refreshProcess.set(ind, scheduleRefresh(d, ind, refreshInterval, refreshTics));
-//					} // else -> don't loose stored informations on BatteryDeviceInterface implementation
+					if(refreshProcess.get(ind) != null) {
+						refreshProcess.get(ind).cancel(true);
+					}
+					devices.set(ind, d);
+					fireEvent(EventType.SUBSTITUTE, ind);
+					refreshProcess.set(ind, scheduleRefresh(d, ind, refreshInterval, refreshTics));
+					// remove any subsequent row representing the same device (very rare)
+					int second;
+					if((second = indexOf(d, ind + 1)) >= 0) {
+						remove(second);
+					}
 				}
 			} else {
 				final int idx = devices.size();
@@ -505,7 +502,9 @@ public class Devices extends it.usna.util.UsnaObservable<Devices.EventType, Inte
 				} catch (RuntimeException /*| JacksonException*/ e) {
 					LOG.trace("Unexpected-refresh: {}", d, e);
 					d.setStatus(Status.ERROR);
-				} catch (IOException | InterruptedException e) {}
+				} catch (IOException | InterruptedException e) {
+					LOG.trace("Unexpected-refresh: {}", d, e);
+				}
 				synchronized(devices) {
 					if(devices.size() > idx && d == devices.get(idx) && Thread.interrupted() == false) { // underlying model unchanged (on rescan)
 						fireEvent(EventType.UPDATE, msgIdx);
@@ -642,8 +641,17 @@ public class Devices extends it.usna.util.UsnaObservable<Devices.EventType, Inte
 		LOG.debug("Model closed");
 	}
 	
-//	103966 [pool-1-thread-29] TRACE it.usna.shellyscan.model.Devices - getting info (/shelly) /192.168.1.17:80 - shellyprorgbwwpm-2cbcbba78f08
-//	103966 [pool-1-thread-91] TRACE it.usna.shellyscan.model.Devices - getting info (/shelly) /192.168.1.17:80 - Pro RGBWW
+	private int indexOf(ShellyAbstractDevice d, int fromIndex) {
+		synchronized(devices) {
+			for (int i = fromIndex; i < devices.size(); i++) {
+				if (devices.get(i).equals(d)) {
+					return i;
+				}
+			}
+		}
+		return -1;
+	}
+
 	public int indexByIP(InetAddressAndPort ip) {
 		synchronized(devices) {
 			for(int i = 0; i < devices.size(); i++) {

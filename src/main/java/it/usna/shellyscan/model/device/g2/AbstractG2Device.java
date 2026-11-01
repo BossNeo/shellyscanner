@@ -43,7 +43,7 @@ import it.usna.shellyscan.model.device.RestoreUtil;
 import it.usna.shellyscan.model.device.ShellyAbstractDevice;
 import it.usna.shellyscan.model.device.g2.modules.DynamicComponents;
 import it.usna.shellyscan.model.device.g2.modules.FirmwareManagerG2;
-import it.usna.shellyscan.model.device.g2.modules.InputResetManagerG2;
+import it.usna.shellyscan.model.device.g2.modules.InputManagerG2;
 import it.usna.shellyscan.model.device.g2.modules.KVS;
 import it.usna.shellyscan.model.device.g2.modules.LoginManagerG2;
 import it.usna.shellyscan.model.device.g2.modules.MQTTManagerG2;
@@ -56,7 +56,7 @@ import it.usna.shellyscan.model.device.g2.modules.WIFIManagerG2;
 import it.usna.shellyscan.model.device.g2.modules.Webhooks;
 import it.usna.shellyscan.model.device.modules.WallDisplayInterface;
 import it.usna.shellyscan.model.device.modules.FirmwareManager;
-import it.usna.shellyscan.model.device.modules.InputResetManager;
+import it.usna.shellyscan.model.device.modules.InpuManager;
 import it.usna.shellyscan.model.device.modules.LoginManager;
 import it.usna.shellyscan.model.device.modules.WIFIManager;
 import it.usna.shellyscan.model.device.modules.WIFIManager.Network;
@@ -247,8 +247,8 @@ public abstract class AbstractG2Device extends ShellyAbstractDevice {
 	}
 	
 	@Override
-	public InputResetManager getInputResetManager() throws IOException {
-		return new InputResetManagerG2(this);
+	public InpuManager getInputResetManager() throws IOException {
+		return new InputManagerG2(this);
 	}
 
 	public String postCommand(final String method, JsonNode payload) {
@@ -268,6 +268,7 @@ public abstract class AbstractG2Device extends ShellyAbstractDevice {
 			JsonNode error;
 			if((error = resp.get("error")) == null) { // {"id":1,"src":"shellyplusi4-xxx","result":{"restart_required":true}}
 				rebootRequired = resp.path("result").path("restart_required").asBoolean(false);
+//				if(rebootRequired) LOG.debug("reload: {} {}", method, payload);
 				if(status == Status.NOT_LOOGGED) {
 					return "Status-PROTECTED";
 				} else if(status == Status.ERROR) {
@@ -676,6 +677,13 @@ public abstract class AbstractG2Device extends ShellyAbstractDevice {
 		TimeUnit.MILLISECONDS.sleep(delay);
 		errors.add(postCommand("Cloud.SetConfig", outConfig));
 
+		JsonNode modbus = config.get("modbus");
+		if(modbus != null && modbus.has("enable")) {
+			outConfig.putObject("config").put("enable", modbus.get("enable").asBoolean());
+			TimeUnit.MILLISECONDS.sleep(delay);
+			errors.add(postCommand("Modbus.SetConfig", outConfig));
+		}
+
 		// Sys.SetConfig
 		JsonNode sys = config.get("sys");
 		ObjectNode outDevice = (ObjectNode)sys.get("device")/*.deepCopy()*/;
@@ -698,7 +706,7 @@ public abstract class AbstractG2Device extends ShellyAbstractDevice {
 		if(zigbee != null) {
 			outConfig.set("config", zigbee/*.deepCopy()*/);
 			TimeUnit.MILLISECONDS.sleep(delay);
-			errors.add(postCommand("Zigbee.SetConfig", outConfig));
+//			errors.add(postCommand("Zigbee.SetConfig", outConfig));
 		}
 		
 		final JsonNode mqtt = config.path("mqtt");

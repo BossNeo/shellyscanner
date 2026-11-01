@@ -21,9 +21,9 @@ abstract class SliderPar extends JPanel implements EditorPanel {
 	private static final long serialVersionUID = 1L;
 	protected JSlider slider;
 	
-	public SliderPar(final String parameters, String parName, Pattern pattern, int min, int max) {
+	private SliderPar(final String parameters, String parName, Pattern pattern, int min, int max) {
 		setBorder(BorderFactory.createEmptyBorder(6, 8, 12, 8));
-		setLayout(new VerticalFlowLayout(VerticalFlowLayout.CENTER, VerticalFlowLayout.LEFT, 0, 0));
+		setLayout(new VerticalFlowLayout(VerticalFlowLayout.VAlign.CENTER, VerticalFlowLayout.HAlign.LEFT, 0, 0));
 		
 		var matcher = pattern.matcher(parameters);
 		matcher.find();
@@ -31,7 +31,12 @@ abstract class SliderPar extends JPanel implements EditorPanel {
 		JLabel label = new JLabel();
 		this.add(label);
 		this.add(slider);
-		ChangeListener cl = e -> label.setText(parName + ": " + slider.getValue());
+		final ChangeListener cl;
+		if(max == 100) { // this is a simple assumption; I'll find a batter alternative in case it will not be valid anymore
+			cl = e -> label.setText(parName + ": " + slider.getValue() + "%");
+		} else {
+			cl = e -> label.setText(parName + ": " + slider.getValue());
+		}
 		slider.addChangeListener(cl);
 		cl.stateChanged(null);
 	}

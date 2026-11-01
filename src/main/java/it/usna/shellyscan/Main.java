@@ -1,7 +1,6 @@
 package it.usna.shellyscan;
 
 import java.awt.Color;
-import java.awt.Cursor;
 import java.awt.Image;
 import java.awt.Toolkit;
 import java.nio.file.Path;
@@ -27,6 +26,7 @@ import it.usna.shellyscan.view.chart.NonInteractiveMeasuresChart;
 import it.usna.shellyscan.view.util.ApplicationUpdateCHK;
 import it.usna.shellyscan.view.util.Msg;
 import it.usna.shellyscan.view.util.ScannerProperties;
+import it.usna.swing.BusyCursor;
 import it.usna.swing.UsnaSwingUtils;
 import it.usna.util.CLI;
 
@@ -35,15 +35,15 @@ public class Main {
 		System.setProperty("apple.eawt.quitStrategy", "CLOSE_ALL_WINDOWS"); // macOS specific - cmd-Q / -Dapple.eawt.quitStrategy=CLOSE_ALL_WINDOWS
 	}
 	public static final String APP_NAME = "Shelly Scanner";
-	public static final String VERSION = "1.3.4";
-	public static final String VERSION_CODE = "001.003.004r200"; // r0xx alpha; r1xx beta; r2xx stable
+	public static final String VERSION = "1.3.5 alpha";
+	public static final String VERSION_CODE = "001.003.005r000"; // r0xx alpha; r1xx beta; r2xx stable
 	public static final Image ICON = Toolkit.getDefaultToolkit().createImage(Main.class.getResource("/images/ShSc24.png"));
 	public static final String BACKUP_FILE_EXT = "sbk";
 	public static final String ARCHIVE_FILE_EXT = "arc";
 
 	public static final ResourceBundle LABELS = ResourceBundle.getBundle("LabelsBundle");
 	public static final Color BG_COLOR = new Color(60, 70, 90);
-	public static final Color TAB_LINE1_COLOR = new Color(240, 240, 240);
+	public static final Color TAB_LINE1_COLOR = Color.WHITE;//new Color(240, 240, 240);
 	public static final Color TAB_LINE2_COLOR = new Color(210, 218, 255);
 	public static final Color STATUS_LINE_COLOR = new Color(172, 195, 230);
 	public static final String TAB_VERSION = "5"; // on version change reset table settings
@@ -57,7 +57,7 @@ public class Main {
 		
 		logger.info(APP_NAME + " " + VERSION_CODE);
 		if(logger.isDebugEnabled()) {
-			logger.debug("Runnnning on: " + System.getProperty("os.name") + "; java version: " + Runtime.version().toString() + " / " + System.getProperties().getProperty("java.vendor"));
+			logger.debug("Runnnning on: {}; java version: {} / {}", System.getProperty("os.name"), Runtime.version(), System.getProperties().getProperty("java.vendor"));
 		}
 
 		final ScannerProperties appProp = ScannerProperties.init(Path.of(System.getProperty("user.home"), ".shellyScanner"));
@@ -120,7 +120,9 @@ public class Main {
 				pDecoded = new String(Base64.getDecoder().decode(lPwd.substring(1))).toCharArray();
 			} catch(RuntimeException e) {}
 		}
-		DevicesFactory.setCredential((lUser == null || lUser.isEmpty()) ? null : lUser, pDecoded);
+		DevicesFactory.setCredentials((lUser == null || lUser.isEmpty()) ? null : lUser, pDecoded);
+		boolean askPwd = cli.hasEntry("-nopwd") < 0 && appProp.getBoolProperty(ScannerProperties.PROP_ASK_PWD);
+		DevicesFactory.askCredentials(askPwd);
 
 		// Non interactive commands
 		if((cliIndex = cli.hasEntry("-backup")) >= 0) {
@@ -147,7 +149,14 @@ public class Main {
 			} else {
 				fontMultiplier = Float.parseFloat(appProp.getProperty(ScannerProperties.PROP_FONT_SIZE));
 			}
+//			try {
+//			    UIManager.setLookAndFeel( new FlatLightLaf() );
+//			} catch( Exception ex ) {
+//			    System.err.println( "Failed to initialize LaF" );
+//			}
 			UsnaSwingUtils.setNimbusLookAndFeel(fontMultiplier);
+//			UIManager.put("nimbusBlueGrey", Color.WHITE);
+//			UIManager.put("nimbusLightBackground", Color.WHITE);
 			UsnaSwingUtils.macOddities();
 			//UIManager.getLookAndFeelDefaults().put("Table:\"Table.cellRenderer\".alternateRowColor", TAB_LINE2_COLOR); // genera strani log
 		} catch (Exception e) {
@@ -190,8 +199,7 @@ public class Main {
 			final boolean fullScanFinal = fullScan;
 			final IPCollection ipCollectionFinal = ipCollection;
 			SwingUtilities.invokeLater(() -> {
-				try {
-					view.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+				try (var res = new BusyCursor(view)) {
 					boolean useArchive = appProp.getBoolProperty(ScannerProperties.PROP_USE_ARCHIVE);
 					if(useArchive) {
 						try {
@@ -211,8 +219,6 @@ public class Main {
 				} catch (/*IO*/Exception e) {
 					Msg.errorMsg(null, e);
 					System.exit(1);
-				} finally {
-					view.setCursor(Cursor.getDefaultCursor());
 				}
 			});
 			if(cli.unused().length > 0) {

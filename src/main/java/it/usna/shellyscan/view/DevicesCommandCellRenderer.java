@@ -55,7 +55,7 @@ public class DevicesCommandCellRenderer implements TableCellRenderer {
 	static final ImageIcon UP_ON_IMG = new ImageIcon(DevicesCommandCellRenderer.class.getResource("/images/Arrow16up_on.png"));
 	static final ImageIcon STOP_IMG = new ImageIcon(DevicesCommandCellRenderer.class.getResource("/images/PlayerStop16.png"));
 	static final ImageIcon LOCK_IMG = new ImageIcon(DevicesCommandCellRenderer.class.getResource("/images/Lock16.png"));
-	static final ImageIcon UNLOCK_IMG = new ImageIcon(DevicesCommandCellRenderer.class.getResource("/images/LockOpen16.png"));
+	static final ImageIcon UNLOCK_IMG = new ImageIcon(DevicesCommandCellRenderer.class.getResource("/images/LockOpenBlue16.png"));
 	private JButton onOffButton0 = new JButton();
 	private JLabel label0 = new JLabel();
 	private JPanel panel0 = new JPanel();
@@ -118,8 +118,6 @@ public class DevicesCommandCellRenderer implements TableCellRenderer {
 				return getRGBCCTPanel(lights[0], foregroundColor, true, true);
 			} else if(value instanceof RGBWInterface[] rgbs) { // RGBs
 				return getRGBWPanel(rgbs[0], foregroundColor, true, true);
-			} else if(value instanceof RGBInterface[] rgbs) { // RGBs
-				return getRGBPanel(rgbs[0], foregroundColor, true, true);
 			} else if(value instanceof ThermostatG1 thermostat) { // TRV gen1
 				return getThermostatG1Panel(thermostat, foregroundColor);
 			} else if(value instanceof ThermostatInterface[] thermostats) {
@@ -145,12 +143,18 @@ public class DevicesCommandCellRenderer implements TableCellRenderer {
 						}
 					} else if(module instanceof RollerInterface rol) {
 						stackedPanel.add(getRollerPanel(rol, foregroundColor, i == 0));
-					} else if(module instanceof WhiteInterface white && modArray.length <= 2) {
-						stackedPanel.add(getWhitePanel(white, foregroundColor, i == 0, i == indEditButton));
-					} else if(module instanceof WhiteInterface white /*&& modArray.length > 2*/) {
-						stackedPanel.add(getWhiteSyntheticPanel(white, foregroundColor, i == 0, i == indEditButton));
+					} else if(module instanceof WhiteInterface white) {
+						if( modArray.length <= 2) {
+							stackedPanel.add(getWhitePanel(white, foregroundColor, i == 0, i == indEditButton));
+						} else {
+							stackedPanel.add(getWhiteSyntheticPanel(white, foregroundColor, i == 0, i == indEditButton));
+						}
 					} else if(module instanceof RGBInterface rgb) {
-						stackedPanel.add(getRGBSyntheticPanel(rgb, foregroundColor, i == 0, i == indEditButton));
+						if(modArray.length <= 2) {
+							stackedPanel.add(getRGBPanel(rgb, foregroundColor, i == 0, i == indEditButton));
+						} else {
+							stackedPanel.add(getRGBSyntheticPanel(rgb, foregroundColor, i == 0, i == indEditButton));
+						}
 					} else if(module instanceof MotionInterface pir) {
 						JLabel motionLabel = getSelectionLabel((i == 0), LABELS.getString(pir.motion() ? "labelStatusMotion_true" : "labelStatusMotion_false"));
 						motionLabel.setForeground(foregroundColor);
@@ -219,7 +223,7 @@ public class DevicesCommandCellRenderer implements TableCellRenderer {
 			}
 		}
 		relayLabel.setForeground(foregroundColor);
-		JPanel relayButtonPanel = new JPanel(new VerticalFlowLayout(VerticalFlowLayout.CENTER, VerticalFlowLayout.CENTER, 0, 0));
+		JPanel relayButtonPanel = new JPanel(new VerticalFlowLayout(VerticalFlowLayout.VAlign.CENTER, VerticalFlowLayout.HAlign.CENTER, 0, 0));
 		relayButtonPanel.setOpaque(false);
 		relayButtonPanel.add(button);
 
@@ -242,7 +246,7 @@ public class DevicesCommandCellRenderer implements TableCellRenderer {
 		final JButton button = new JButton();
 		button.setBorder(BUTTON_BORDERS);
 		relayLabel.setForeground(foregroundColor);
-		JPanel relayButtonPanel = new JPanel(new VerticalFlowLayout(VerticalFlowLayout.CENTER, VerticalFlowLayout.CENTER, 0, 0));
+		JPanel relayButtonPanel = new JPanel(new VerticalFlowLayout(VerticalFlowLayout.VAlign.CENTER, VerticalFlowLayout.HAlign.CENTER, 0, 0));
 		relayButtonPanel.setOpaque(false);
 		relayButtonPanel.add(button);
 
@@ -442,7 +446,7 @@ public class DevicesCommandCellRenderer implements TableCellRenderer {
 	}
 	
 	private JPanel getRGBPanel(RGBInterface light, final Color foregroundColor, boolean useButton0, boolean addEditButton) {
-		final JPanel panel = new JPanel(new BorderLayout());
+		final JPanel panel = getSectionPanel(useButton0, new BorderLayout());
 		final JLabel label;
 		final JButton button;
 		if(useButton0) {

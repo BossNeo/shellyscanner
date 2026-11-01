@@ -1,7 +1,6 @@
 package it.usna.shellyscan.view.scheduler.gen2plus;
 
 import java.awt.Component;
-import java.awt.Cursor;
 import java.awt.FlowLayout;
 import java.awt.Toolkit;
 import java.awt.datatransfer.Clipboard;
@@ -32,6 +31,7 @@ import it.usna.shellyscan.model.device.g2.AbstractG2Device;
 import it.usna.shellyscan.model.device.g2.modules.ScheduleManager;
 import it.usna.shellyscan.view.util.Msg;
 import it.usna.shellyscan.view.util.ScannerProperties;
+import it.usna.swing.BusyCursor;
 import it.usna.swing.VerticalFlowLayout;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -49,7 +49,7 @@ public class G2SchedulerPanel extends JScrollPane {
 	private final MethodHints mHints;
 	private final ArrayList<ScheduleData> originalValues = new ArrayList<>();
 	private final ArrayList<Integer> removedId = new ArrayList<>();
-	private final JPanel schedulesPanel = new JPanel(new VerticalFlowLayout(VerticalFlowLayout.TOP, VerticalFlowLayout.CENTER, 0, 0));
+	private final JPanel schedulesPanel = new JPanel(new VerticalFlowLayout(VerticalFlowLayout.VAlign.TOP, VerticalFlowLayout.HAlign.CENTER, 0, 0));
 
 	public G2SchedulerPanel(JDialog parent, AbstractG2Device device) {
 		super(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
@@ -112,8 +112,7 @@ public class G2SchedulerPanel extends JScrollPane {
 		fc.setAcceptAllFileFilterUsed(false);
 		fc.setFileFilter(new FileNameExtensionFilter(Main.LABELS.getString("filetype_sbk_desc"), Main.BACKUP_FILE_EXT));
 		if(fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-			setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
-			try {
+			try (var cres = new BusyCursor(parentDlg)) {
 				Map<String, JsonNode> files = RestoreAction.readBackupFile(fc.getSelectedFile().toPath());
 				appProp.setProperty("LAST_PATH", fc.getCurrentDirectory().getCanonicalPath());
 				JsonNode schNode = files.get("Schedule.List.json").get("jobs");
@@ -136,7 +135,6 @@ public class G2SchedulerPanel extends JScrollPane {
 			} catch (/*IO*/Exception e) {
 				Msg.errorMsg(this, "msgIncompatibleFile");
 			} finally {
-				parentDlg.setCursor(Cursor.getDefaultCursor());
 				lineColors();
 			}
 		}
